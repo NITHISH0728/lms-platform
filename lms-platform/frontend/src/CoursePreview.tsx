@@ -3,7 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { 
   ArrowLeft, Trash2, Edit2, Video, FileText, 
-  Code, HelpCircle, FileQuestion, ChevronDown, ChevronRight 
+  Code, HelpCircle, FileQuestion, ChevronDown, ChevronRight,
+  CheckCircle, AlertCircle, X
 } from "lucide-react";
 
 const CoursePreview = () => {
@@ -18,17 +19,26 @@ const CoursePreview = () => {
   const [editTitle, setEditTitle] = useState("");
   const [editUrl, setEditUrl] = useState("");
 
+  // ✅ NEW: Toast State
+  const [toast, setToast] = useState({ show: false, message: "", type: "success" });
+
+  const brand = { blue: "#005EB8", green: "#87C232", textMain: "#1e293b", textLight: "#64748b" };
+
+  // --- HELPER: Trigger Toast ---
+  const triggerToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ ...toast, show: false }), 3000);
+  };
+
   useEffect(() => { fetchCourseData(); }, [courseId]);
 
   const fetchCourseData = async () => {
     try {
       const token = localStorage.getItem("token");
-      // Re-using the player endpoint because it gives us the perfect nested structure
       const res = await axios.get(`http://127.0.0.1:8000/api/v1/courses/${courseId}/player`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCourse(res.data);
-      // Auto-expand all modules by default for better visibility
       setExpandedModules(res.data.modules.map((m: any) => m.id));
     } catch (err) {
       console.error("Error loading preview", err);
@@ -44,9 +54,10 @@ const CoursePreview = () => {
       await axios.delete(`http://127.0.0.1:8000/api/v1/content/${itemId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      fetchCourseData(); // Refresh list
+      fetchCourseData(); 
+      triggerToast("Item deleted successfully", "success");
     } catch (err) {
-      alert("Failed to delete item.");
+      triggerToast("Failed to delete item.", "error");
     }
   };
 
@@ -66,9 +77,10 @@ const CoursePreview = () => {
       }, { headers: { Authorization: `Bearer ${token}` } });
       
       setEditingItem(null);
-      fetchCourseData(); // Refresh
+      fetchCourseData(); 
+      triggerToast("Item updated successfully", "success");
     } catch (err) {
-      alert("Failed to update item.");
+      triggerToast("Failed to update item.", "error");
     }
   };
 
@@ -180,6 +192,26 @@ const CoursePreview = () => {
                <button onClick={() => setEditingItem(null)} style={{ flex: 1, padding: "10px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: "6px", fontWeight: "600", cursor: "pointer" }}>Cancel</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ✅ TOAST NOTIFICATION COMPONENT */}
+      {toast.show && (
+        <div style={{
+          position: "fixed", top: "20px", right: "20px", zIndex: 9999,
+          background: "white", padding: "16px 24px", borderRadius: "12px",
+          boxShadow: "0 10px 30px -5px rgba(0,0,0,0.15)", borderLeft: `6px solid ${toast.type === "success" ? brand.green : "#ef4444"}`,
+          display: "flex", alignItems: "center", gap: "12px", animation: "slideIn 0.3s ease-out"
+        }}>
+           {toast.type === "success" ? <CheckCircle size={24} color={brand.green} /> : <AlertCircle size={24} color="#ef4444" />}
+           <div>
+             <h4 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "700", color: brand.textMain }}>{toast.type === "success" ? "Success" : "Error"}</h4>
+             <p style={{ margin: 0, fontSize: "13px", color: brand.textLight }}>{toast.message}</p>
+           </div>
+           <button onClick={() => setToast({ ...toast, show: false })} style={{ background: "none", border: "none", cursor: "pointer", marginLeft: "10px" }}>
+             <X size={16} color="#94a3b8" />
+           </button>
+           <style>{`@keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }`}</style>
         </div>
       )}
     </div>

@@ -4,9 +4,10 @@ import axios from "axios";
 import Plyr from "plyr-react";
 import "plyr/dist/plyr.css";
 import { CodeTestPreview } from "./components/CodeTestPreview";
+// ✅ UPDATED IMPORTS: Added ChevronDown, ChevronRight, and others requested
 import { 
   PlayCircle, FileText, ChevronLeft, Menu, Code, HelpCircle, 
-  UploadCloud, CheckCircle, Play
+  UploadCloud, CheckCircle, Play, ChevronDown, ChevronRight, X, ArrowLeft 
 } from "lucide-react";
 
 // --- 🔥 FEATURE 4: CODE TEST COMPILER (JUDGE0) ---
@@ -74,6 +75,9 @@ const CoursePlayer = () => {
   const [course, setCourse] = useState<any>(null);
   const [activeLesson, setActiveLesson] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  
+  // ✅ NEW STATE: Tracks expanded modules for Accordion logic
+  const [expandedModules, setExpandedModules] = useState<number[]>([]);
 
   const brand = { blue: "#005EB8", green: "#87C232", textMain: "#0f172a", textLight: "#64748b" };
 
@@ -83,11 +87,32 @@ const CoursePlayer = () => {
         const token = localStorage.getItem("token");
         const res = await axios.get(`http://127.0.0.1:8000/api/v1/courses/${courseId}/player`, { headers: { Authorization: `Bearer ${token}` } });
         setCourse(res.data);
-        if (res.data.modules?.[0]?.lessons?.length > 0) setActiveLesson(res.data.modules[0].lessons[0]);
+        
+        // ✅ UPDATED FETCH LOGIC: Auto-open first module and select first lesson
+        if (res.data.modules?.[0]) {
+            setExpandedModules([res.data.modules[0].id]); // Expand first module
+            if (res.data.modules[0].lessons?.length > 0) {
+                setActiveLesson(res.data.modules[0].lessons[0]);
+            }
+        }
       } catch (err) { console.error(err); }
     };
     fetchCourse();
   }, [courseId]);
+
+  // ✅ NEW HELPER: Toggles accordion sections
+  const toggleModule = (moduleId: number) => {
+    setExpandedModules(prev => 
+      prev.includes(moduleId) 
+        ? prev.filter(id => id !== moduleId) // Close it
+        : [...prev, moduleId] // Open it
+    );
+  };
+
+  // ✅ NEW HELPER: Compatible handler for the sidebar
+  const handleLessonChange = (lesson: any) => {
+    setActiveLesson(lesson);
+  };
 
   const getEmbedUrl = (url: string) => {
     if (!url) return "";
@@ -201,27 +226,77 @@ const CoursePlayer = () => {
            <div style={{ padding: "24px", borderBottom: "1px solid #e2e8f0" }}>
              <h2 style={{ fontSize: "14px", fontWeight: "800", color: brand.textMain, textTransform: "uppercase", letterSpacing: "1px" }}>Course Content</h2>
            </div>
-           <div style={{ flex: 1, overflowY: "auto", padding: "10px" }}>
+           <div style={{ flex: 1, overflowY: "auto", padding: "0" }}>
+             {/* ✅ UPDATED SIDEBAR MAPPING: Replaced with Accordion Logic */}
              {course?.modules.map((module: any, idx: number) => (
-               <div key={module.id} style={{ marginBottom: "20px" }}>
-                 <div style={{ padding: "0 10px 10px 10px", fontSize: "12px", fontWeight: "700", color: brand.textLight }}>SECTION {idx + 1}: {module.title.toUpperCase()}</div>
-                 {module.lessons.map((lesson: any) => {
-                   const isActive = activeLesson?.id === lesson.id;
-                   let icon = <FileText size={16} />;
-                   if (lesson.type.includes("video") || lesson.type.includes("class")) icon = <PlayCircle size={16} />;
-                   if (lesson.type === "quiz") icon = <HelpCircle size={16} />;
-                   if (lesson.type.includes("code")) icon = <Code size={16} />;
-                   if (lesson.type === "assignment") icon = <UploadCloud size={16} />;
+                <div key={module.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                  
+                  {/* 1. CLICKABLE HEADER */}
+                  <div 
+                    onClick={() => toggleModule(module.id)}
+                    style={{ 
+                      padding: "16px 20px", 
+                      background: "#f8fafc", 
+                      cursor: "pointer", 
+                      display: "flex", 
+                      justifyContent: "space-between", 
+                      alignItems: "center",
+                      transition: "background 0.2s"
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.background = "#f1f5f9"}
+                    onMouseOut={(e) => e.currentTarget.style.background = "#f8fafc"}
+                  >
+                    <div>
+                      <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Section {idx + 1}</div>
+                      <div style={{ fontSize: "14px", fontWeight: "600", color: "#333" }}>{module.title}</div>
+                    </div>
+                    {/* Arrow Icon Logic */}
+                    {expandedModules.includes(module.id) ? (
+                      <ChevronDown size={18} color="#64748b" />
+                    ) : (
+                      <ChevronRight size={18} color="#64748b" />
+                    )}
+                  </div>
 
-                   return (
-                     <div key={lesson.id} onClick={() => setActiveLesson(lesson)}
-                       style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderRadius: "8px", cursor: "pointer", marginBottom: "4px", background: isActive ? "#eff6ff" : "white", color: isActive ? brand.blue : brand.textMain, borderLeft: isActive ? `3px solid ${brand.blue}` : "3px solid transparent" }}>
-                       {icon}
-                       <span style={{ fontSize: "14px", fontWeight: isActive ? "600" : "500", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{lesson.title}</span>
-                     </div>
-                   );
-                 })}
-               </div>
+                  {/* 2. LESSON LIST (Only shows if expanded) */}
+                  {expandedModules.includes(module.id) && (
+                    <div style={{ animation: "fadeIn 0.2s ease" }}>
+                      {module.lessons.map((lesson: any) => {
+                        const isActive = activeLesson?.id === lesson.id;
+                        return (
+                          <div 
+                            key={lesson.id} 
+                            onClick={() => handleLessonChange(lesson)}
+                            style={{ 
+                              display: "flex", 
+                              alignItems: "center", 
+                              gap: "12px", 
+                              padding: "12px 20px 12px 25px", 
+                              cursor: "pointer", 
+                              background: isActive ? "#eff6ff" : "white",
+                              borderLeft: isActive ? `4px solid ${brand.blue}` : "4px solid transparent",
+                              transition: "all 0.1s"
+                            }}
+                          >
+                            <div style={{ color: isActive ? brand.blue : "#94a3b8" }}>
+                              {(lesson.type.includes("video") || lesson.type.includes("class")) && <PlayCircle size={16} />}
+                              {lesson.type === "note" && <FileText size={16} />}
+                              {lesson.type === "quiz" && <HelpCircle size={16} />}
+                              {lesson.type.includes("code") && <Code size={16} />}
+                              {lesson.type === "assignment" && <UploadCloud size={16} />}
+                            </div>
+                            <div style={{ fontSize: "14px", color: isActive ? brand.blue : "#475569", fontWeight: isActive ? "600" : "400", flex: 1 }}>
+                              {lesson.title}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {module.lessons.length === 0 && (
+                          <div style={{ padding: "15px 25px", fontSize: "12px", color: "#94a3b8", fontStyle: "italic" }}>No lessons in this module</div>
+                      )}
+                    </div>
+                  )}
+                </div>
              ))}
            </div>
         </aside>

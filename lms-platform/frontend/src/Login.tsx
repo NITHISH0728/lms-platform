@@ -1,13 +1,17 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { CheckCircle, AlertCircle, X } from "lucide-react"; // Icons for Toast
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [role, setRole] = useState("student"); // 'student' or 'instructor'
   const [formData, setFormData] = useState({ email: "", password: "", name: "" });
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  // ✅ NEW: Toast State
+  const [toast, setToast] = useState({ show: false, message: "", type: "success" });
+
   const navigate = useNavigate();
 
   // 🎨 BRAND COLORS
@@ -23,51 +27,55 @@ const Login = () => {
   // ⚡ Dynamic Theme based on Role
   const activeColor = role === "student" ? brand.blue : brand.green;
   
-  // 🔄 Clear inputs when switching modes
-  useEffect(() => { setError(""); }, [role, isLogin]);
+  // ✅ NEW: Toast Trigger Helper
+  const triggerToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ ...toast, show: false }), 3000);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
     setLoading(true);
 
     try {
       if (isLogin) {
-        // --- 🔑 LOGIN LOGIC (Standard OAuth2 Format) ---
+        // --- 🔑 LOGIN LOGIC ---
         const loginParams = new URLSearchParams();
         loginParams.append("username", formData.email);
         loginParams.append("password", formData.password);
         
         const res = await axios.post("http://127.0.0.1:8000/api/v1/login", loginParams);
         
-        // Save auth data
         localStorage.setItem("token", res.data.access_token);
         localStorage.setItem("role", res.data.role);
         
-        // Navigate based on returned role
-        const targetPath = res.data.role === "instructor" ? "/dashboard" : "/student-dashboard";
-        navigate(targetPath);
+        triggerToast("Login Successful! Redirecting...", "success");
+        
+        setTimeout(() => {
+             const targetPath = res.data.role === "instructor" ? "/dashboard" : "/student-dashboard";
+             navigate(targetPath);
+        }, 1000);
 
       } else {
-        // --- 📝 SIGN UP LOGIC (JSON Format) ---
+        // --- 📝 SIGN UP LOGIC ---
         await axios.post("http://127.0.0.1:8000/api/v1/users", {
           email: formData.email,
           password: formData.password,
-          name: formData.name,   // Sends Full Name to backend
+          name: formData.name,   
           role: role,
         });
         
-        alert("Account created successfully! Please sign in.");
-        setIsLogin(true); // Switch to login screen
+        triggerToast("Account created successfully! Please sign in.", "success");
+        setIsLogin(true); 
       }
     } catch (err: any) {
       console.error(err);
       if (err.response && err.response.status === 401) {
-          setError("Invalid Email or Password. If you reset your database, please register again.");
+          triggerToast("Invalid Email or Password.", "error");
       } else if (err.response && err.response.status === 400) {
-          setError("This email is already registered.");
+          triggerToast("This email is already registered.", "error");
       } else {
-          setError("Connection error. Ensure your backend is running.");
+          triggerToast("Connection error. Ensure your backend is running.", "error");
       }
     } finally {
       setLoading(false);
@@ -132,12 +140,6 @@ const Login = () => {
             <button type="button" onClick={() => setRole("instructor")} style={roleBtnStyle(role === "instructor", brand.green)}>Instructor</button>
           </div>
 
-          {error && (
-            <div style={{ background: "#fef2f2", color: "#991b1b", padding: "12px", borderRadius: "8px", marginBottom: "20px", fontSize: "14px", borderLeft: "4px solid #991b1b" }}>
-              {error}
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             {!isLogin && (
               <input 
@@ -188,10 +190,33 @@ const Login = () => {
         </div>
       </div>
 
+      {/* ✅ TOAST NOTIFICATION COMPONENT */}
+      {toast.show && (
+        <div style={{
+          position: "fixed", top: "20px", right: "20px", zIndex: 9999,
+          background: "white", padding: "16px 24px", borderRadius: "12px",
+          boxShadow: "0 10px 30px -5px rgba(0,0,0,0.15)", borderLeft: `6px solid ${toast.type === "success" ? brand.green : "#ef4444"}`,
+          display: "flex", alignItems: "center", gap: "12px", animation: "slideIn 0.3s ease-out"
+        }}>
+           {toast.type === "success" ? <CheckCircle size={24} color={brand.green} /> : <AlertCircle size={24} color="#ef4444" />}
+           <div>
+             <h4 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "700", color: brand.darkText }}>{toast.type === "success" ? "Success" : "Error"}</h4>
+             <p style={{ margin: 0, fontSize: "13px", color: brand.lightText }}>{toast.message}</p>
+           </div>
+           <button onClick={() => setToast({ ...toast, show: false })} style={{ background: "none", border: "none", cursor: "pointer", marginLeft: "10px" }}>
+             <X size={16} color="#94a3b8" />
+           </button>
+        </div>
+      )}
+
       <style>{`
         @keyframes fadeInSlide {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateX(20px); }
+          to { opacity: 1; transform: translateX(0); }
         }
         .fade-in-slide {
           animation: fadeInSlide 0.5s ease-out forwards;

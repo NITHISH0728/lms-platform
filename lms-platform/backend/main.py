@@ -86,6 +86,8 @@ class AdmitStudentRequest(BaseModel):
 class EnrollmentRequest(BaseModel):
     type: str # 'trial' or 'paid'
 
+class PasswordChange(BaseModel):
+    new_password: str
 # --- 🔑 AUTH LOGIC ---
 def verify_password(plain, hashed): return pwd_context.verify(plain, hashed)
 def get_password_hash(pw): return pwd_context.hash(pw)
@@ -516,6 +518,13 @@ def update_content(content_id: int, update: ContentUpdate, db: Session = Depends
     
     db.commit()
     return {"message": "Item updated successfully"}
+
+@app.post("/api/v1/user/change-password")
+def change_password(req: PasswordChange, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    # Update password
+    current_user.hashed_password = get_password_hash(req.new_password)
+    db.commit()
+    return {"message": "Password updated successfully"}
 
 @app.get("/")
 def read_root(): return {"status": "online", "message": "iQmath API Active 🟢"}

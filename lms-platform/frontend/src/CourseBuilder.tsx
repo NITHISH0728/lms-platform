@@ -41,8 +41,17 @@ const CourseBuilder = () => {
   const [memoryLimit, setMemoryLimit] = useState("256000");
   const [testCases, setTestCases] = useState([{ input: "", output: "" }]);
 
+  // ✅ NEW: Toast State
+  const [toast, setToast] = useState({ show: false, message: "", type: "success" });
+
   // 🎨 iQmath Professional Brand Palette
   const brand = { blue: "#005EB8", green: "#87C232", bg: "#F8FAFC", border: "#e2e8f0", textMain: "#1e293b", textLight: "#64748b" };
+
+  // --- HELPER: Trigger Toast ---
+  const triggerToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ ...toast, show: false }), 3000);
+  };
 
   useEffect(() => { fetchModules(); }, [courseId]);
 
@@ -62,7 +71,8 @@ const CourseBuilder = () => {
       const token = localStorage.getItem("token");
       await axios.post(`http://127.0.0.1:8000/api/v1/courses/${courseId}/modules`, { title: newModuleTitle, order: modules.length + 1 }, { headers: { Authorization: `Bearer ${token}` } });
       setNewModuleTitle(""); setShowAddModule(false); fetchModules();
-    } catch (err) { alert("Error adding module"); } finally { setLoading(false); }
+      triggerToast("Module added successfully!", "success");
+    } catch (err) { triggerToast("Error adding module", "error"); } finally { setLoading(false); }
   };
 
   const handlePublish = async () => {
@@ -70,9 +80,9 @@ const CourseBuilder = () => {
     try {
       const token = localStorage.getItem("token");
       await axios.patch(`http://127.0.0.1:8000/api/v1/courses/${courseId}/publish`, {}, { headers: { Authorization: `Bearer ${token}` } });
-      alert("🎉 Course Published! It is now live for iQmath students.");
-      navigate("/dashboard/courses");
-    } catch (err) { alert("Error publishing course."); } finally { setIsPublishing(false); }
+      triggerToast("🎉 Course Published! It is now live for iQmath students.", "success");
+      setTimeout(() => navigate("/dashboard/courses"), 2000);
+    } catch (err) { triggerToast("Error publishing course.", "error"); } finally { setIsPublishing(false); }
   };
 
   // --- 📝 TEST CASE HELPERS ---
@@ -86,8 +96,8 @@ const CourseBuilder = () => {
 
   // ✅ MERGED CONTENT SAVING LOGIC
   const saveContentItem = async () => {
-    if (!selectedModuleId) return alert("Select a module from the sidebar first!");
-    if (!itemTitle.trim()) return alert("Please enter a title.");
+    if (!selectedModuleId) return triggerToast("Select a module from the sidebar first!", "error");
+    if (!itemTitle.trim()) return triggerToast("Please enter a title.", "error");
 
     const token = localStorage.getItem("token");
     const typeKey = activeModal?.toLowerCase().replace(" ", "_") || "video";
@@ -116,9 +126,9 @@ const CourseBuilder = () => {
 
     try {
       await axios.post(`http://127.0.0.1:8000/api/v1/content`, payload, { headers: { Authorization: `Bearer ${token}` } });
-      alert(`✅ ${activeModal} added successfully!`);
+      triggerToast(`✅ ${activeModal} added successfully!`, "success");
       setActiveModal(null); resetForm();
-    } catch (err) { alert("Failed to save. Ensure your backend CORS is fixed."); }
+    } catch (err) { triggerToast("Failed to save. Ensure your backend CORS is fixed.", "error"); }
   };
 
   const resetForm = () => {
@@ -141,19 +151,19 @@ const CourseBuilder = () => {
         
         <div style={{ display: "flex", gap: "12px" }}>
            <button 
-  onClick={() => navigate(`/dashboard/course/${courseId}/preview`)} 
-  style={{ 
-    padding: "10px 20px", 
-    background: "white", 
-    color: "#005EB8", 
-    border: "1px solid #005EB8", 
-    borderRadius: "8px", 
-    fontWeight: "600", 
-    cursor: "pointer" 
-  }}
->
-  Preview & Manage
-</button>
+             onClick={() => navigate(`/dashboard/course/${courseId}/preview`)} 
+             style={{ 
+               padding: "10px 20px", 
+               background: "white", 
+               color: "#005EB8", 
+               border: "1px solid #005EB8", 
+               borderRadius: "8px", 
+               fontWeight: "600", 
+               cursor: "pointer" 
+             }}
+           >
+             Preview & Manage
+           </button>
            <button onClick={handlePublish} disabled={isPublishing} style={{ padding: "12px 32px", borderRadius: "10px", border: "none", background: brand.green, color: "white", fontWeight: "800", cursor: "pointer", boxShadow: "0 4px 12px rgba(135, 194, 50, 0.3)" }}>{isPublishing ? "Publishing..." : "Publish Course"}</button>
         </div>
       </header>
@@ -189,7 +199,7 @@ const CourseBuilder = () => {
           </div>
         </aside>
 
-        {/* 📝 RIGHT MAIN: GRAPHY CONTENT SELECTOR (REORDERED) */}
+        {/* 📝 RIGHT MAIN: GRAPHY CONTENT SELECTOR */}
         <main style={{ background: "white", borderRadius: "20px", border: `1px solid ${brand.border}`, padding: "60px", textAlign: "center" }}>
           <Layout size={48} color={brand.border} style={{ marginBottom: "20px" }} />
           <h2 style={{ fontSize: "28px", fontWeight: "800", color: brand.textMain, marginBottom: "8px" }}>Create new learning item</h2>
@@ -197,47 +207,24 @@ const CourseBuilder = () => {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "24px", maxWidth: "850px", margin: "0 auto" }}>
             
-            {/* 1. NOTES */}
-            <div onClick={() => setActiveModal("Note")} style={selectorCard}>
-               <Edit3 size={28} color={brand.blue} />
-               <div style={{ textAlign: "left" }}><div style={cardTitle}>Notes</div><div style={cardDesc}>Drive PDF Links</div></div>
-            </div>
-
-            {/* 2. VIDEOS */}
-            <div onClick={() => setActiveModal("Video")} style={selectorCard}>
-               <Video size={28} color={brand.blue} />
-               <div style={{ textAlign: "left" }}><div style={cardTitle}>Video</div><div style={cardDesc}>YouTube lessons</div></div>
-            </div>
-
-            {/* 3. QUIZ */}
-            <div onClick={() => setActiveModal("Quiz")} style={selectorCard}>
-               <HelpCircle size={28} color={brand.blue} />
-               <div style={{ textAlign: "left" }}><div style={cardTitle}>Quiz</div><div style={cardDesc}>Google Form Links</div></div>
-            </div>
-
-            {/* 4. CODE TEST (NEW) */}
-            <div onClick={() => setActiveModal("Code Test")} style={selectorCard}>
-               <Code size={28} color="#7c3aed" />
-               <div style={{ textAlign: "left" }}><div style={cardTitle}>Code Test</div><div style={cardDesc}>Compiler Challenges</div></div>
-            </div>
-
-            {/* 5. ASSIGNMENT */}
-            <div onClick={() => setActiveModal("Assignment")} style={selectorCard}>
-               <FileText size={28} color={brand.blue} />
-               <div style={{ textAlign: "left" }}><div style={cardTitle}>Assignment</div><div style={cardDesc}>PDF projects (Drive)</div></div>
-            </div>
-
-            {/* 6. LIVE CLASS (Auto-top) */}
-            <div onClick={() => setActiveModal("Live Class")} style={selectorCard}>
-               <Radio size={28} color="#ef4444" />
-               <div style={{ textAlign: "left" }}><div style={cardTitle}>Live Class</div><div style={cardDesc}>YouTube Live Link</div></div>
-            </div>
-
-            {/* 7. LIVE TEST (Auto-top) */}
-            <div onClick={() => setActiveModal("Live Test")} style={selectorCard}>
-               <Zap size={28} color="#EAB308" />
-               <div style={{ textAlign: "left" }}><div style={cardTitle}>Live Test</div><div style={cardDesc}>Timed assessment</div></div>
-            </div>
+            {/* CONTENT TYPES */}
+            {[
+                { type: "Note", icon: <Edit3 size={28} color={brand.blue} />, desc: "Drive PDF Links" },
+                { type: "Video", icon: <Video size={28} color={brand.blue} />, desc: "YouTube lessons" },
+                { type: "Quiz", icon: <HelpCircle size={28} color={brand.blue} />, desc: "Google Form Links" },
+                { type: "Code Test", icon: <Code size={28} color="#7c3aed" />, desc: "Compiler Challenges" },
+                { type: "Assignment", icon: <FileText size={28} color={brand.blue} />, desc: "PDF projects (Drive)" },
+                { type: "Live Class", icon: <Radio size={28} color="#ef4444" />, desc: "YouTube Live Link" },
+                { type: "Live Test", icon: <Zap size={28} color="#EAB308" />, desc: "Timed assessment" },
+            ].map(item => (
+                <div key={item.type} onClick={() => setActiveModal(item.type)} style={selectorCard}>
+                    {item.icon}
+                    <div style={{ textAlign: "left" }}>
+                        <div style={cardTitle}>{item.type}</div>
+                        <div style={cardDesc}>{item.desc}</div>
+                    </div>
+                </div>
+            ))}
           </div>
         </main>
       </div>
@@ -274,8 +261,6 @@ const CourseBuilder = () => {
                         <label style={labelStyle}>Problem Description</label>
                         <textarea rows={4} value={itemInstructions} onChange={(e) => setItemInstructions(e.target.value)} placeholder="Explain the logic required..." style={{...inputStyle, resize: "vertical"}} />
                     </div>
-                    
-                    {/* Test Cases */}
                     <div>
                         <label style={labelStyle}>Test Cases</label>
                         {testCases.map((tc, idx) => (
@@ -298,7 +283,6 @@ const CourseBuilder = () => {
                         <label style={labelStyle}>{activeModal === "Heading" ? "Heading Name" : "Item Title"}</label>
                         <input value={itemTitle} onChange={(e) => setItemTitle(e.target.value)} placeholder="e.g. Phase 1: Basics" style={inputStyle} />
                     </div>
-                    
                     {activeModal !== "Heading" && (
                         <>
                         <div>
@@ -326,6 +310,26 @@ const CourseBuilder = () => {
 
             <button onClick={saveContentItem} style={saveButton}>Save {activeModal === "Code Test" ? "Problem" : activeModal === "Heading" ? "Section Heading" : "Learning Item"}</button>
           </div>
+        </div>
+      )}
+
+      {/* ✅ TOAST NOTIFICATION COMPONENT */}
+      {toast.show && (
+        <div style={{
+          position: "fixed", top: "20px", right: "20px", zIndex: 9999,
+          background: "white", padding: "16px 24px", borderRadius: "12px",
+          boxShadow: "0 10px 30px -5px rgba(0,0,0,0.15)", borderLeft: `6px solid ${toast.type === "success" ? brand.green : "#ef4444"}`,
+          display: "flex", alignItems: "center", gap: "12px", animation: "slideIn 0.3s ease-out"
+        }}>
+           {toast.type === "success" ? <CheckCircle size={24} color={brand.green} /> : <AlertCircle size={24} color="#ef4444" />}
+           <div>
+             <h4 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "700", color: brand.textMain }}>{toast.type === "success" ? "Success" : "Error"}</h4>
+             <p style={{ margin: 0, fontSize: "13px", color: brand.textLight }}>{toast.message}</p>
+           </div>
+           <button onClick={() => setToast({ ...toast, show: false })} style={{ background: "none", border: "none", cursor: "pointer", marginLeft: "10px" }}>
+             <X size={16} color="#94a3b8" />
+           </button>
+           <style>{`@keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }`}</style>
         </div>
       )}
     </div>

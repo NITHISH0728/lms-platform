@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, BookOpen, Compass, Award, Settings, LogOut, 
   TrendingUp, BookCheck, Trophy, PlayCircle, ShoppingBag, 
-  User, Download, Clock, CreditCard, X 
+  User, Download, Clock, CreditCard, X, Lock, Save, CheckCircle, AlertCircle
 } from "lucide-react";
 
 // Types
@@ -25,10 +25,17 @@ const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   
-  // --- ✅ NEW MODAL STATE ---
+  // Modal State
   const [showModal, setShowModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [processing, setProcessing] = useState(false);
+
+  // Settings State
+  const [newPassword, setNewPassword] = useState("");
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  // ✅ NEW: TOAST NOTIFICATION STATE
+  const [toast, setToast] = useState({ show: false, message: "", type: "success" });
 
   // Mock Data 
   const stats = { assigned: enrolledCourses.length, certificates: 0, rank: 12 };
@@ -38,7 +45,7 @@ const StudentDashboard = () => {
     const role = localStorage.getItem("role");
     if (role === "instructor") { navigate("/dashboard"); return; }
     fetchData();
-  }, [activeTab]); // Added activeTab to dependency to refresh on tab switch
+  }, [activeTab]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -55,13 +62,17 @@ const StudentDashboard = () => {
     finally { setLoading(false); }
   };
 
-  // --- ✅ NEW: OPEN MODAL ---
+  // ✅ NEW: TOAST TRIGGER FUNCTION
+  const triggerToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ ...toast, show: false }), 3000); // Auto hide after 3s
+  };
+
   const openEnrollModal = (course: Course) => {
     setSelectedCourse(course);
     setShowModal(true);
   };
 
-  // --- ✅ NEW: 7-DAY TRIAL LOGIC ---
   const handleTrialParams = async () => {
     if (!selectedCourse) return;
     setProcessing(true);
@@ -73,24 +84,24 @@ const StudentDashboard = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      alert("🎉 7-Day Free Trial Activated! Enjoy.");
+      // ✅ REPLACED ALERT WITH TOAST
+      triggerToast("🎉 7-Day Free Trial Activated!");
       setShowModal(false);
       setActiveTab("learning"); 
-      fetchData(); // Refresh lists
+      fetchData(); 
     } catch (err: any) {
-      alert("Error activating trial: " + (err.response?.data?.detail || "Unknown error"));
+      triggerToast("Error activating trial: " + (err.response?.data?.detail || "Unknown error"), "error");
     } finally {
       setProcessing(false);
     }
   };
 
-  // --- ✅ NEW: RAZORPAY LOGIC ---
   const handlePayment = () => {
     if (!selectedCourse) return;
     setProcessing(true);
 
     const options = {
-      key: "rzp_test_Rp3E7Uhj31NKAP", // ⚠️ REPLACE WITH YOUR ACTUAL KEY ID
+      key: "YOUR_RAZORPAY_KEY_ID", 
       amount: selectedCourse.price * 100, 
       currency: "INR",
       name: "iQmath Learning",
@@ -104,19 +115,16 @@ const StudentDashboard = () => {
             { type: "paid" }, 
             { headers: { Authorization: `Bearer ${token}` } }
           );
-          alert("Payment Successful! You have lifetime access.");
+          // ✅ REPLACED ALERT WITH TOAST
+          triggerToast("Payment Successful! Lifetime access granted.");
           setShowModal(false);
           setActiveTab("learning");
           fetchData();
         } catch (error) {
-          alert("Enrollment failed after payment. Contact support.");
+          triggerToast("Enrollment failed after payment. Contact support.", "error");
         }
       },
-      prefill: {
-        name: "Student Name",
-        email: "student@example.com",
-        contact: "9999999999",
-      },
+      prefill: { name: "Student", email: "student@example.com" },
       theme: { color: brand.blue },
     };
 
@@ -125,7 +133,55 @@ const StudentDashboard = () => {
     setProcessing(false);
   };
 
-  // ✅ EXISTING: Secure PDF Downloader
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 6) return triggerToast("Password must be at least 6 characters.", "error");
+    
+    setSavingSettings(true);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.post(
+        "http://127.0.0.1:8000/api/v1/user/change-password",
+        { new_password: newPassword },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      // ✅ REPLACED ALERT WITH TOAST
+      triggerToast("Password updated successfully!");
+      setNewPassword("");
+    } catch (err) {
+      triggerToast("Failed to update password.", "error");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const CourseCard = ({ course, type }: { course: Course, type: "enrolled" | "available" }) => {
+    const [imgError, setImgError] = useState(false);
+    return (
+      <div style={{ background: "white", borderRadius: "16px", border: `1px solid ${brand.border}`, overflow: "hidden", transition: "transform 0.2s" }}
+           onMouseOver={e => e.currentTarget.style.transform = "translateY(-4px)"}
+           onMouseOut={e => e.currentTarget.style.transform = "translateY(0)"}>
+        <div style={{ height: "160px", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+          {course.image_url && !imgError ? (
+             <img src={course.image_url} alt={course.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setImgError(true)} />
+          ) : ( <BookOpen size={40} color={brand.textLight} /> )}
+          {type === "enrolled" && <div style={{ position: "absolute", top: 10, right: 10, background: brand.green, color: "white", padding: "4px 10px", borderRadius: "20px", fontSize: "10px", fontWeight: "800" }}>ACTIVE</div>}
+        </div>
+        <div style={{ padding: "20px" }}>
+          <h4 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "700", color: brand.textMain }}>{course.title}</h4>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px" }}>
+            <span style={{ fontSize: "18px", fontWeight: "800", color: brand.blue }}>₹{course.price}</span>
+            {type === "available" ? (
+              <button onClick={() => openEnrollModal(course)} style={{ background: brand.blue, color: "white", border: "none", padding: "8px 16px", borderRadius: "8px", fontWeight: "600", cursor: "pointer", display: "flex", gap: "6px", alignItems: "center" }}><ShoppingBag size={14} /> Enroll</button>
+            ) : (
+              <button onClick={() => navigate(`/course/${course.id}/player`)} style={{ background: brand.textMain, color: "white", border: "none", padding: "8px 16px", borderRadius: "8px", fontWeight: "600", cursor: "pointer", display: "flex", gap: "6px", alignItems: "center" }}><PlayCircle size={14} /> Resume</button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const handleDownloadCertificate = async (courseId: number, courseTitle: string) => {
     setDownloadingId(courseId);
     try {
@@ -134,18 +190,16 @@ const StudentDashboard = () => {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob' 
       });
-
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `${courseTitle.replace(/\s+/g, '_')}_Certificate.pdf`);
       document.body.appendChild(link);
       link.click();
-      
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert("Failed to download certificate. Please try logging in again.");
+      triggerToast("Failed to download certificate.", "error");
     } finally {
       setDownloadingId(null);
     }
@@ -153,7 +207,6 @@ const StudentDashboard = () => {
 
   const handleLogout = () => { localStorage.clear(); navigate("/"); };
 
-  // Sub-Components
   const StatCard = ({ title, value, icon, color }: any) => (
     <div style={{ background: "white", padding: "24px", borderRadius: "16px", border: `1px solid ${brand.border}`, flex: 1, display: "flex", flexDirection: "column", gap: "10px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.02)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
@@ -167,34 +220,24 @@ const StudentDashboard = () => {
     </div>
   );
 
-  const CourseCard = ({ course, type }: { course: Course, type: "enrolled" | "available" }) => (
-    <div style={{ background: "white", borderRadius: "16px", border: `1px solid ${brand.border}`, overflow: "hidden", transition: "transform 0.2s" }}
-         onMouseOver={e => e.currentTarget.style.transform = "translateY(-4px)"}
-         onMouseOut={e => e.currentTarget.style.transform = "translateY(0)"}>
-      <div style={{ height: "160px", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-        {course.image_url ? <img src={course.image_url} alt={course.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <BookOpen size={40} color={brand.textLight} />}
-        {type === "enrolled" && <div style={{ position: "absolute", top: 10, right: 10, background: brand.green, color: "white", padding: "4px 10px", borderRadius: "20px", fontSize: "10px", fontWeight: "800" }}>ACTIVE</div>}
-      </div>
-      <div style={{ padding: "20px" }}>
-        <h4 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "700", color: brand.textMain }}>{course.title}</h4>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px" }}>
-          <span style={{ fontSize: "18px", fontWeight: "800", color: brand.blue }}>₹{course.price}</span>
-          {type === "available" ? (
-            // ✅ CHANGED: Now opens Modal instead of direct enroll
-            <button onClick={() => openEnrollModal(course)} style={{ background: brand.blue, color: "white", border: "none", padding: "8px 16px", borderRadius: "8px", fontWeight: "600", cursor: "pointer", display: "flex", gap: "6px", alignItems: "center" }}><ShoppingBag size={14} /> Enroll</button>
-          ) : (
-            <button onClick={() => navigate(`/course/${course.id}/player`)} style={{ background: brand.textMain, color: "white", border: "none", padding: "8px 16px", borderRadius: "8px", fontWeight: "600", cursor: "pointer", display: "flex", gap: "6px", alignItems: "center" }}><PlayCircle size={14} /> Resume</button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: brand.bg, fontFamily: "'Inter', sans-serif" }}>
       
       {/* 🛠️ SIDEBAR */}
-      <aside style={{ width: "260px", background: "white", borderRight: `1px solid ${brand.border}`, padding: "24px", display: "flex", flexDirection: "column", position: "fixed", height: "100vh", zIndex: 50, top: 0, left: 0 }}>
+      <aside style={{ 
+        width: "260px", 
+        background: "white", 
+        borderRight: `1px solid ${brand.border}`, 
+        padding: "24px", 
+        display: "flex", 
+        flexDirection: "column", 
+        position: "fixed", 
+        height: "100vh", 
+        zIndex: 50, 
+        top: 0, 
+        left: 0,
+        boxSizing: "border-box" 
+      }}>
         <div style={{ marginBottom: "40px", paddingLeft: "10px" }}>
           <span style={{ fontSize: "22px", fontWeight: "900", color: brand.blue }}>iQmath<span style={{ color: brand.green }}>Pro</span></span>
         </div>
@@ -224,6 +267,7 @@ const StudentDashboard = () => {
               {activeTab === "learning" && "My Learning"}
               {activeTab === "explore" && "Course Marketplace"}
               {activeTab === "certificates" && "Achievements"}
+              {activeTab === "settings" && "Account Settings"}
             </h2>
             <p style={{ color: brand.textLight }}>Welcome back, Student</p>
           </div>
@@ -287,11 +331,8 @@ const StudentDashboard = () => {
                                         <span style={{ fontSize: "12px", fontWeight: "600", color: brand.textLight }}>Issued: {new Date().toLocaleDateString()}</span>
                                         <span style={{ fontSize: "10px", fontWeight: "700", background: "#dcfce7", color: "#166534", padding: "4px 8px", borderRadius: "12px" }}>VERIFIED</span>
                                     </div>
-                                    <button 
-                                        onClick={() => handleDownloadCertificate(course.id, course.title)}
-                                        disabled={downloadingId === course.id}
-                                        style={{ width: "100%", padding: "12px", background: brand.blue, color: "white", border: "none", borderRadius: "10px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", opacity: downloadingId === course.id ? 0.7 : 1 }}
-                                    >
+                                    <button onClick={() => handleDownloadCertificate(course.id, course.title)} disabled={downloadingId === course.id}
+                                        style={{ width: "100%", padding: "12px", background: brand.blue, color: "white", border: "none", borderRadius: "10px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", opacity: downloadingId === course.id ? 0.7 : 1 }}>
                                         <Download size={18} /> {downloadingId === course.id ? "Generating PDF..." : "Download PDF"}
                                     </button>
                                 </div>
@@ -307,56 +348,88 @@ const StudentDashboard = () => {
                 )}
             </div>
         )}
+
+        {/* SETTINGS TAB */}
+        {activeTab === "settings" && (
+            <div style={{ animation: "fadeIn 0.3s ease", maxWidth: "600px" }}>
+                <div style={{ background: "white", borderRadius: "16px", border: `1px solid ${brand.border}`, padding: "30px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "15px", marginBottom: "20px", paddingBottom: "20px", borderBottom: `1px solid ${brand.border}` }}>
+                        <div style={{ padding: "12px", background: "#e0f2fe", borderRadius: "10px", color: brand.blue }}><Lock size={24} /></div>
+                        <div>
+                            <h3 style={{ margin: 0, fontSize: "18px", color: brand.textMain }}>Security Settings</h3>
+                            <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: brand.textLight }}>Update your account password</p>
+                        </div>
+                    </div>
+                    <form onSubmit={handlePasswordChange}>
+                        <div style={{ marginBottom: "20px" }}>
+                            <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: brand.textMain, marginBottom: "8px", textTransform: "uppercase" }}>New Password</label>
+                            <input 
+                                type="password" 
+                                required 
+                                minLength={6}
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="Enter new strong password"
+                                style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1", outline: "none", fontSize: "14px" }}
+                            />
+                        </div>
+                        <button 
+                            type="submit" 
+                            disabled={savingSettings}
+                            style={{ padding: "12px 24px", background: brand.blue, color: "white", border: "none", borderRadius: "8px", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", opacity: savingSettings ? 0.7 : 1 }}
+                        >
+                            <Save size={18} /> {savingSettings ? "Updating..." : "Update Password"}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        )}
+
       </main>
 
-      {/* --- ✅ NEW MODAL POPUP --- */}
+      {/* ✅ NEW: TOAST NOTIFICATION COMPONENT */}
+      {toast.show && (
+        <div style={{
+          position: "fixed", top: "20px", right: "20px", zIndex: 9999,
+          background: "white", padding: "16px 24px", borderRadius: "12px",
+          boxShadow: "0 10px 30px -5px rgba(0,0,0,0.15)", borderLeft: `6px solid ${toast.type === "success" ? brand.green : "#ef4444"}`,
+          display: "flex", alignItems: "center", gap: "12px", animation: "slideIn 0.3s ease-out"
+        }}>
+           {toast.type === "success" ? <CheckCircle size={24} color={brand.green} /> : <AlertCircle size={24} color="#ef4444" />}
+           <div>
+             <h4 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "700", color: brand.textMain }}>{toast.type === "success" ? "Success" : "Error"}</h4>
+             <p style={{ margin: 0, fontSize: "13px", color: brand.textLight }}>{toast.message}</p>
+           </div>
+           <button onClick={() => setToast({ ...toast, show: false })} style={{ background: "none", border: "none", cursor: "pointer", marginLeft: "10px" }}>
+             <X size={16} color="#94a3b8" />
+           </button>
+        </div>
+      )}
+
+      {/* MODAL POPUP */}
       {showModal && selectedCourse && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(5px)" }}>
            <div style={{ background: "white", width: "450px", borderRadius: "20px", padding: "30px", position: "relative", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)" }}>
-              
               <button onClick={() => setShowModal(false)} style={{ position: "absolute", top: "20px", right: "20px", background: "none", border: "none", cursor: "pointer" }}><X size={24} color="#94a3b8" /></button>
-              
               <h2 style={{ margin: "0 0 5px 0", fontSize: "22px", color: brand.textMain }}>Unlock Course</h2>
               <p style={{ margin: "0 0 25px 0", color: "#64748b" }}>{selectedCourse.title}</p>
-
-              {/* 🟢 OPTION 1: FREE TRIAL */}
               <div style={{ border: `2px solid ${brand.green}`, borderRadius: "12px", padding: "20px", background: "#f0fdf4", position: "relative", marginBottom: "25px" }}>
                  <div style={{ position: "absolute", top: "-12px", right: "20px", background: brand.green, color: "white", fontSize: "11px", fontWeight: "800", padding: "4px 12px", borderRadius: "20px", textTransform: "uppercase" }}>Recommended</div>
                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
                     <Clock size={24} color={brand.green} />
                     <h3 style={{ margin: 0, fontSize: "18px", color: "#166534" }}>Start 7-Day Free Trial</h3>
                  </div>
-                 <p style={{ fontSize: "13px", color: "#15803d", margin: "0 0 15px 0", lineHeight: "1.5" }}>
-                    Get full access to all modules and assignments for 7 days. No credit card required. No commitment.
-                 </p>
-                 <button 
-                   onClick={handleTrialParams} 
-                   disabled={processing}
-                   style={{ width: "100%", padding: "12px", background: brand.green, color: "white", border: "none", borderRadius: "8px", fontWeight: "700", cursor: "pointer", fontSize: "15px", boxShadow: "0 4px 6px -1px rgba(135, 194, 50, 0.4)" }}
-                 >
+                 <p style={{ fontSize: "13px", color: "#15803d", margin: "0 0 15px 0", lineHeight: "1.5" }}>Get full access to all modules and assignments for 7 days. No credit card required. No commitment.</p>
+                 <button onClick={handleTrialParams} disabled={processing} style={{ width: "100%", padding: "12px", background: brand.green, color: "white", border: "none", borderRadius: "8px", fontWeight: "700", cursor: "pointer", fontSize: "15px", boxShadow: "0 4px 6px -1px rgba(135, 194, 50, 0.4)" }}>
                    {processing ? "Activating..." : "Start Free Trial"}
                  </button>
               </div>
-
-              {/* DIVIDER */}
               <div style={{ display: "flex", alignItems: "center", gap: "15px", margin: "0 0 25px 0" }}>
-                 <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }}></div>
-                 <span style={{ fontSize: "12px", fontWeight: "700", color: "#94a3b8" }}>OR</span>
-                 <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }}></div>
+                 <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }}></div><span style={{ fontSize: "12px", fontWeight: "700", color: "#94a3b8" }}>OR</span><div style={{ flex: 1, height: "1px", background: "#e2e8f0" }}></div>
               </div>
-
-              {/* 🔵 OPTION 2: LIFETIME ACCESS */}
-              <button 
-                onClick={handlePayment}
-                disabled={processing}
-                style={{ width: "100%", padding: "14px", background: "white", color: brand.textMain, border: "1px solid #cbd5e1", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", cursor: "pointer", fontSize: "15px", fontWeight: "600", transition: "background 0.2s" }}
-                onMouseOver={(e) => e.currentTarget.style.background = "#f8fafc"}
-                onMouseOut={(e) => e.currentTarget.style.background = "white"}
-              >
-                 <CreditCard size={18} />
-                 <span>Buy Lifetime Access for <b>₹{selectedCourse.price}</b></span>
+              <button onClick={handlePayment} disabled={processing} style={{ width: "100%", padding: "14px", background: "white", color: brand.textMain, border: "1px solid #cbd5e1", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", cursor: "pointer", fontSize: "15px", fontWeight: "600", transition: "background 0.2s" }} onMouseOver={(e) => e.currentTarget.style.background = "#f8fafc"} onMouseOut={(e) => e.currentTarget.style.background = "white"}>
+                 <CreditCard size={18} /><span>Buy Lifetime Access for <b>₹{selectedCourse.price}</b></span>
               </button>
-
            </div>
         </div>
       )}
