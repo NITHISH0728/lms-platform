@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Text
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Text, JSON
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -13,6 +13,7 @@ class User(Base):
     
     enrollments = relationship("Enrollment", back_populates="student")
     submissions = relationship("Submission", back_populates="student")
+    test_results = relationship("TestResult", back_populates="student")
 
 class Course(Base):
     __tablename__ = "courses"
@@ -60,11 +61,9 @@ class Enrollment(Base):
     course_id = Column(Integer, ForeignKey("courses.id"))
     enrolled_at = Column(DateTime, default=datetime.utcnow)
     
-    # New Columns for Free Trial
     enrollment_type = Column(String, default="paid") 
     expiry_date = Column(DateTime, nullable=True)    
     
-    # ✅ FIX IS HERE: back_populates must match the variable name in the OTHER class
     student = relationship("User", back_populates="enrollments") 
     course = relationship("Course", back_populates="enrollments") 
 
@@ -79,3 +78,40 @@ class Submission(Base):
     
     student = relationship("User", back_populates="submissions")
     assignment = relationship("ContentItem")
+
+# ✅ NEW: CODE ARENA MODELS
+class CodeTest(Base):
+    __tablename__ = "code_tests"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String)
+    pass_key = Column(String)
+    time_limit = Column(Integer) # In minutes
+    instructor_id = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    problems = relationship("Problem", back_populates="test")
+    results = relationship("TestResult", back_populates="test")
+
+class Problem(Base):
+    __tablename__ = "problems"
+    id = Column(Integer, primary_key=True, index=True)
+    test_id = Column(Integer, ForeignKey("code_tests.id"))
+    title = Column(String)
+    description = Column(Text)
+    difficulty = Column(String)
+    test_cases = Column(Text) # Stored as JSON string
+    
+    test = relationship("CodeTest", back_populates="problems")
+
+class TestResult(Base):
+    __tablename__ = "test_results"
+    id = Column(Integer, primary_key=True, index=True)
+    test_id = Column(Integer, ForeignKey("code_tests.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    score = Column(Integer)
+    problems_solved = Column(Integer)
+    time_taken = Column(String) # "45 mins"
+    submitted_at = Column(DateTime, default=datetime.utcnow)
+    
+    student = relationship("User", back_populates="test_results")
+    test = relationship("CodeTest", back_populates="results")

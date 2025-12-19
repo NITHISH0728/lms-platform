@@ -12,7 +12,8 @@ import AssignmentManager from "./AssignmentManager";
 import StudentDashboard from "./StudentDashboard"; 
 import CoursePlayer from "./CoursePlayer"; 
 import AddAdmits from "./AddAdmits"; 
-import CoursePreview from "./CoursePreview"; // ✅ ADDED THIS MISSING LINE
+import CoursePreview from "./CoursePreview";
+import CodeArena from "./CodeArena"; // 👈 ✅ IMPORTED CODE ARENA
 
 // --- 📚 COMPONENT: Instructor Course List (With Safety Catch) ---
 const CourseList = () => {
@@ -143,8 +144,10 @@ function App() {
           <Route path="course/:courseId/builder" element={<CourseBuilder />} />
           <Route path="assignments" element={<AssignmentManager />} />
           <Route path="add-admits" element={<AddAdmits />} />
-          {/* ✅ Preview Page Route */}
           <Route path="course/:courseId/preview" element={<CoursePreview />} />
+          
+          {/* ✅ ADDED THIS ROUTE FOR CODE ARENA */}
+          <Route path="code-arena" element={<CodeArena />} />
         </Route>
         
         {/* STUDENT AREA */}

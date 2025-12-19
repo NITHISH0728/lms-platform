@@ -6,7 +6,8 @@ import {
   PlusCircle, 
   LogOut, 
   Bell,
-  ChevronRight
+  ChevronRight,
+  Code // ✅ Imported Code icon
 } from "lucide-react"; 
 
 const DashboardLayout = () => {
@@ -37,6 +38,12 @@ const DashboardLayout = () => {
       label: "My Courses", 
       path: "/dashboard/courses", 
       icon: <BookOpen size={20} />,
+    },
+    // ✅ ADDED CODE ARENA HERE
+    { 
+      label: "Code Arena", 
+      path: "/dashboard/code-arena", 
+      icon: <Code size={20} />, 
     },
     { 
       label: "Add Admits", 
@@ -81,7 +88,7 @@ const DashboardLayout = () => {
         </div>
 
         {/* Navigation Items */}
-        <nav style={{ flex: 1, padding: "24px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
+        <nav style={{ flex: 1, padding: "24px 16px", display: "flex", flexDirection: "column", gap: "8px", overflowY: "auto" }}>
           {menuItems.map((item) => {
             const isActive = location.pathname === item.path || location.pathname === item.path + "/";
             return (
