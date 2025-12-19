@@ -1,36 +1,30 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, DateTime
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Text
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 from database import Base
+from datetime import datetime
 
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
+    full_name = Column(String)
     hashed_password = Column(String)
-    full_name = Column(String, nullable=True)
-    role = Column(String) # 'instructor' or 'student'
-    is_active = Column(Boolean, default=True)
+    role = Column(String) 
     
-    # Relationships
-    courses = relationship("Course", back_populates="instructor")
     enrollments = relationship("Enrollment", back_populates="student")
     submissions = relationship("Submission", back_populates="student")
 
 class Course(Base):
     __tablename__ = "courses"
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, index=True)
-    description = Column(Text)
+    title = Column(String)
+    description = Column(String)
     price = Column(Integer)
     image_url = Column(String, nullable=True)
     is_published = Column(Boolean, default=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
     instructor_id = Column(Integer, ForeignKey("users.id"))
-    instructor = relationship("User", back_populates="courses")
     
-    modules = relationship("Module", back_populates="course", cascade="all, delete-orphan")
+    modules = relationship("Module", back_populates="course")
     enrollments = relationship("Enrollment", back_populates="course")
 
 class Module(Base):
@@ -38,53 +32,50 @@ class Module(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String)
     order = Column(Integer)
-    
     course_id = Column(Integer, ForeignKey("courses.id"))
-    course = relationship("Course", back_populates="modules")
     
-    items = relationship("ContentItem", back_populates="module", cascade="all, delete-orphan")
+    course = relationship("Course", back_populates="modules")
+    items = relationship("ContentItem", back_populates="module")
 
 class ContentItem(Base):
     __tablename__ = "content_items"
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String)
-    type = Column(String)  # 'video', 'assignment', 'quiz', 'code_test', 'live_test', 'live_class', 'note', 'heading'
-    content = Column(Text, nullable=True) # URL or text data
-    order = Column(Integer, default=0)
-    
-    # New Graphy-style fields
-    duration = Column(Integer, nullable=True) # For tests/videos
+    type = Column(String) 
+    content = Column(String, nullable=True) 
+    duration = Column(Integer, nullable=True)
     is_mandatory = Column(Boolean, default=False)
-    instructions = Column(Text, nullable=True)
+    order = Column(Integer)
+    module_id = Column(Integer, ForeignKey("modules.id"))
     
-    # ✅ NEW: Stores JSON string for Code Test (Difficulty, Test Cases, Limits)
+    instructions = Column(Text, nullable=True) 
     test_config = Column(Text, nullable=True) 
     
-    module_id = Column(Integer, ForeignKey("modules.id"))
     module = relationship("Module", back_populates="items")
-    
-    submissions = relationship("Submission", back_populates="assignment")
 
 class Enrollment(Base):
     __tablename__ = "enrollments"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     course_id = Column(Integer, ForeignKey("courses.id"))
-    enrolled_at = Column(DateTime(timezone=True), server_default=func.now())
-    progress_percent = Column(Integer, default=0)
+    enrolled_at = Column(DateTime, default=datetime.utcnow)
     
-    student = relationship("User", back_populates="enrollments")
-    course = relationship("Course", back_populates="enrollments")
+    # New Columns for Free Trial
+    enrollment_type = Column(String, default="paid") 
+    expiry_date = Column(DateTime, nullable=True)    
+    
+    # ✅ FIX IS HERE: back_populates must match the variable name in the OTHER class
+    student = relationship("User", back_populates="enrollments") 
+    course = relationship("Course", back_populates="enrollments") 
 
 class Submission(Base):
     __tablename__ = "submissions"
     id = Column(Integer, primary_key=True, index=True)
-    drive_link = Column(String) # Link to PDF on Drive
-    status = Column(String, default="Pending") # Pending, Accepted, Rejected
-    submitted_at = Column(DateTime(timezone=True), server_default=func.now())
-    
     user_id = Column(Integer, ForeignKey("users.id"))
     content_item_id = Column(Integer, ForeignKey("content_items.id"))
+    drive_link = Column(String)
+    status = Column(String, default="Pending")
+    submitted_at = Column(DateTime, default=datetime.utcnow)
     
     student = relationship("User", back_populates="submissions")
-    assignment = relationship("ContentItem", back_populates="submissions")
+    assignment = relationship("ContentItem")

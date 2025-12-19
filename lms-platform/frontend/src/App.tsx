@@ -11,6 +11,8 @@ import CourseBuilder from "./CourseBuilder";
 import AssignmentManager from "./AssignmentManager";
 import StudentDashboard from "./StudentDashboard"; 
 import CoursePlayer from "./CoursePlayer"; 
+import AddAdmits from "./AddAdmits"; 
+import CoursePreview from "./CoursePreview"; // ✅ ADDED THIS MISSING LINE
 
 // --- 📚 COMPONENT: Instructor Course List (With Safety Catch) ---
 const CourseList = () => {
@@ -22,7 +24,6 @@ const CourseList = () => {
     const fetchCourses = async () => {
       const token = localStorage.getItem("token");
       
-      // ✅ SAFETY CATCH 1: If no token exists, don't even try to fetch
       if (!token) {
         setLoading(false);
         return; 
@@ -35,8 +36,6 @@ const CourseList = () => {
         setCourses(res.data);
       } catch (err: any) {
         console.error("Failed to fetch courses", err);
-        // ✅ SAFETY CATCH 2: If backend says token is invalid (401), wipe storage and go home
-        // This prevents the "Blank Page" issue after a database reset
         if (err.response?.status === 401) {
           localStorage.removeItem("token");
           localStorage.removeItem("role");
@@ -143,7 +142,9 @@ function App() {
           <Route path="create-course" element={<CreateCourse />} />
           <Route path="course/:courseId/builder" element={<CourseBuilder />} />
           <Route path="assignments" element={<AssignmentManager />} />
-          <Route path="add-admits" element={<h2>Add Admits Page</h2>} />
+          <Route path="add-admits" element={<AddAdmits />} />
+          {/* ✅ Preview Page Route */}
+          <Route path="course/:courseId/preview" element={<CoursePreview />} />
         </Route>
         
         {/* STUDENT AREA */}
@@ -162,7 +163,6 @@ const AuthRedirect = () => {
   const role = localStorage.getItem("role");
 
   if (token) {
-    // ✅ STRICT REDIRECT: Learner goes to student-dashboard, Instructor to dashboard
     if (role === "student") return <Navigate to="/student-dashboard" replace />;
     if (role === "instructor") return <Navigate to="/dashboard" replace />;
   }
@@ -176,7 +176,6 @@ const ProtectedRoute = ({ children, requiredRole }: { children: any, requiredRol
 
   if (!token) return <Navigate to="/" replace />;
   
-  // ✅ ROLE CHECK: Prevents learners from accessing instructor pages
   if (requiredRole && role !== requiredRole) {
     return role === "instructor" ? <Navigate to="/dashboard" /> : <Navigate to="/student-dashboard" />;
   }

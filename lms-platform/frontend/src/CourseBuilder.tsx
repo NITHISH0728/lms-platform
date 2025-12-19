@@ -140,7 +140,20 @@ const CourseBuilder = () => {
         </div>
         
         <div style={{ display: "flex", gap: "12px" }}>
-           <button style={{ padding: "12px 24px", borderRadius: "10px", border: `1px solid ${brand.border}`, background: "white", fontWeight: "600", cursor: "pointer" }}>Preview</button>
+           <button 
+  onClick={() => navigate(`/dashboard/course/${courseId}/preview`)} 
+  style={{ 
+    padding: "10px 20px", 
+    background: "white", 
+    color: "#005EB8", 
+    border: "1px solid #005EB8", 
+    borderRadius: "8px", 
+    fontWeight: "600", 
+    cursor: "pointer" 
+  }}
+>
+  Preview & Manage
+</button>
            <button onClick={handlePublish} disabled={isPublishing} style={{ padding: "12px 32px", borderRadius: "10px", border: "none", background: brand.green, color: "white", fontWeight: "800", cursor: "pointer", boxShadow: "0 4px 12px rgba(135, 194, 50, 0.3)" }}>{isPublishing ? "Publishing..." : "Publish Course"}</button>
         </div>
       </header>

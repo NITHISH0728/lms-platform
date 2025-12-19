@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, BookOpen, Compass, Award, Settings, LogOut, 
   TrendingUp, BookCheck, Trophy, PlayCircle, ShoppingBag, 
-  User, Download
+  User, Download, Clock, CreditCard, X 
 } from "lucide-react";
 
 // Types
@@ -23,8 +23,13 @@ const StudentDashboard = () => {
   const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
   const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
-  const [downloadingId, setDownloadingId] = useState<number | null>(null); // New state for loading spinner
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
   
+  // --- ✅ NEW MODAL STATE ---
+  const [showModal, setShowModal] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [processing, setProcessing] = useState(false);
+
   // Mock Data 
   const stats = { assigned: enrolledCourses.length, certificates: 0, rank: 12 };
   const brand = { blue: "#005EB8", green: "#87C232", bg: "#f8fafc", border: "#e2e8f0", textMain: "#1e293b", textLight: "#64748b" };
@@ -33,7 +38,7 @@ const StudentDashboard = () => {
     const role = localStorage.getItem("role");
     if (role === "instructor") { navigate("/dashboard"); return; }
     fetchData();
-  }, []);
+  }, [activeTab]); // Added activeTab to dependency to refresh on tab switch
 
   const fetchData = async () => {
     setLoading(true);
@@ -50,29 +55,86 @@ const StudentDashboard = () => {
     finally { setLoading(false); }
   };
 
-  const handleEnroll = async (course: Course) => {
-    try {
-      const token = localStorage.getItem("token");
-      await axios.post(`http://127.0.0.1:8000/api/v1/enroll/${course.id}`, {}, { headers: { Authorization: `Bearer ${token}` } });
-      alert(`🎉 Enrolled in ${course.title}!`);
-      setAvailableCourses(prev => prev.filter(c => c.id !== course.id));
-      setEnrolledCourses(prev => [...prev, course]);
-      setActiveTab("learning"); 
-    } catch (err) { alert("Enrollment failed."); }
+  // --- ✅ NEW: OPEN MODAL ---
+  const openEnrollModal = (course: Course) => {
+    setSelectedCourse(course);
+    setShowModal(true);
   };
 
-  // ✅ NEW: Secure PDF Downloader
+  // --- ✅ NEW: 7-DAY TRIAL LOGIC ---
+  const handleTrialParams = async () => {
+    if (!selectedCourse) return;
+    setProcessing(true);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.post(
+        `http://127.0.0.1:8000/api/v1/enroll/${selectedCourse.id}`, 
+        { type: "trial" }, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      alert("🎉 7-Day Free Trial Activated! Enjoy.");
+      setShowModal(false);
+      setActiveTab("learning"); 
+      fetchData(); // Refresh lists
+    } catch (err: any) {
+      alert("Error activating trial: " + (err.response?.data?.detail || "Unknown error"));
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // --- ✅ NEW: RAZORPAY LOGIC ---
+  const handlePayment = () => {
+    if (!selectedCourse) return;
+    setProcessing(true);
+
+    const options = {
+      key: "rzp_test_Rp3E7Uhj31NKAP", // ⚠️ REPLACE WITH YOUR ACTUAL KEY ID
+      amount: selectedCourse.price * 100, 
+      currency: "INR",
+      name: "iQmath Learning",
+      description: `Lifetime Access: ${selectedCourse.title}`,
+      image: "https://your-logo-url.com/logo.png",
+      handler: async function (response: any) {
+        try {
+          const token = localStorage.getItem("token");
+          await axios.post(
+            `http://127.0.0.1:8000/api/v1/enroll/${selectedCourse.id}`, 
+            { type: "paid" }, 
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          alert("Payment Successful! You have lifetime access.");
+          setShowModal(false);
+          setActiveTab("learning");
+          fetchData();
+        } catch (error) {
+          alert("Enrollment failed after payment. Contact support.");
+        }
+      },
+      prefill: {
+        name: "Student Name",
+        email: "student@example.com",
+        contact: "9999999999",
+      },
+      theme: { color: brand.blue },
+    };
+
+    const rzp = new (window as any).Razorpay(options);
+    rzp.open();
+    setProcessing(false);
+  };
+
+  // ✅ EXISTING: Secure PDF Downloader
   const handleDownloadCertificate = async (courseId: number, courseTitle: string) => {
     setDownloadingId(courseId);
     try {
       const token = localStorage.getItem("token");
-      // 1. Fetch PDF as a "Blob" (Binary Large Object)
       const response = await axios.get(`http://127.0.0.1:8000/api/v1/generate-pdf/${courseId}`, {
         headers: { Authorization: `Bearer ${token}` },
-        responseType: 'blob' // Crucial: Tells axios to handle binary data
+        responseType: 'blob' 
       });
 
-      // 2. Create a hidden link to download it
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -80,7 +142,6 @@ const StudentDashboard = () => {
       document.body.appendChild(link);
       link.click();
       
-      // 3. Cleanup
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
@@ -119,7 +180,8 @@ const StudentDashboard = () => {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px" }}>
           <span style={{ fontSize: "18px", fontWeight: "800", color: brand.blue }}>₹{course.price}</span>
           {type === "available" ? (
-            <button onClick={() => handleEnroll(course)} style={{ background: brand.blue, color: "white", border: "none", padding: "8px 16px", borderRadius: "8px", fontWeight: "600", cursor: "pointer", display: "flex", gap: "6px", alignItems: "center" }}><ShoppingBag size={14} /> Enroll</button>
+            // ✅ CHANGED: Now opens Modal instead of direct enroll
+            <button onClick={() => openEnrollModal(course)} style={{ background: brand.blue, color: "white", border: "none", padding: "8px 16px", borderRadius: "8px", fontWeight: "600", cursor: "pointer", display: "flex", gap: "6px", alignItems: "center" }}><ShoppingBag size={14} /> Enroll</button>
           ) : (
             <button onClick={() => navigate(`/course/${course.id}/player`)} style={{ background: brand.textMain, color: "white", border: "none", padding: "8px 16px", borderRadius: "8px", fontWeight: "600", cursor: "pointer", display: "flex", gap: "6px", alignItems: "center" }}><PlayCircle size={14} /> Resume</button>
           )}
@@ -199,7 +261,7 @@ const StudentDashboard = () => {
         {activeTab === "learning" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "24px" }}>{enrolledCourses.map(c => <CourseCard key={c.id} course={c} type="enrolled" />)}</div>}
         {activeTab === "explore" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "24px" }}>{availableCourses.map(c => <CourseCard key={c.id} course={c} type="available" />)}</div>}
 
-        {/* 🏆 CERTIFICATES TAB (Secure Download) */}
+        {/* 🏆 CERTIFICATES TAB */}
         {activeTab === "certificates" && (
             <div style={{ animation: "fadeIn 0.3s ease" }}>
                 <h3 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "24px", color: brand.textMain }}>Your Credentials</h3>
@@ -245,8 +307,59 @@ const StudentDashboard = () => {
                 )}
             </div>
         )}
-
       </main>
+
+      {/* --- ✅ NEW MODAL POPUP --- */}
+      {showModal && selectedCourse && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(5px)" }}>
+           <div style={{ background: "white", width: "450px", borderRadius: "20px", padding: "30px", position: "relative", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)" }}>
+              
+              <button onClick={() => setShowModal(false)} style={{ position: "absolute", top: "20px", right: "20px", background: "none", border: "none", cursor: "pointer" }}><X size={24} color="#94a3b8" /></button>
+              
+              <h2 style={{ margin: "0 0 5px 0", fontSize: "22px", color: brand.textMain }}>Unlock Course</h2>
+              <p style={{ margin: "0 0 25px 0", color: "#64748b" }}>{selectedCourse.title}</p>
+
+              {/* 🟢 OPTION 1: FREE TRIAL */}
+              <div style={{ border: `2px solid ${brand.green}`, borderRadius: "12px", padding: "20px", background: "#f0fdf4", position: "relative", marginBottom: "25px" }}>
+                 <div style={{ position: "absolute", top: "-12px", right: "20px", background: brand.green, color: "white", fontSize: "11px", fontWeight: "800", padding: "4px 12px", borderRadius: "20px", textTransform: "uppercase" }}>Recommended</div>
+                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
+                    <Clock size={24} color={brand.green} />
+                    <h3 style={{ margin: 0, fontSize: "18px", color: "#166534" }}>Start 7-Day Free Trial</h3>
+                 </div>
+                 <p style={{ fontSize: "13px", color: "#15803d", margin: "0 0 15px 0", lineHeight: "1.5" }}>
+                    Get full access to all modules and assignments for 7 days. No credit card required. No commitment.
+                 </p>
+                 <button 
+                   onClick={handleTrialParams} 
+                   disabled={processing}
+                   style={{ width: "100%", padding: "12px", background: brand.green, color: "white", border: "none", borderRadius: "8px", fontWeight: "700", cursor: "pointer", fontSize: "15px", boxShadow: "0 4px 6px -1px rgba(135, 194, 50, 0.4)" }}
+                 >
+                   {processing ? "Activating..." : "Start Free Trial"}
+                 </button>
+              </div>
+
+              {/* DIVIDER */}
+              <div style={{ display: "flex", alignItems: "center", gap: "15px", margin: "0 0 25px 0" }}>
+                 <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }}></div>
+                 <span style={{ fontSize: "12px", fontWeight: "700", color: "#94a3b8" }}>OR</span>
+                 <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }}></div>
+              </div>
+
+              {/* 🔵 OPTION 2: LIFETIME ACCESS */}
+              <button 
+                onClick={handlePayment}
+                disabled={processing}
+                style={{ width: "100%", padding: "14px", background: "white", color: brand.textMain, border: "1px solid #cbd5e1", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", cursor: "pointer", fontSize: "15px", fontWeight: "600", transition: "background 0.2s" }}
+                onMouseOver={(e) => e.currentTarget.style.background = "#f8fafc"}
+                onMouseOut={(e) => e.currentTarget.style.background = "white"}
+              >
+                 <CreditCard size={18} />
+                 <span>Buy Lifetime Access for <b>₹{selectedCourse.price}</b></span>
+              </button>
+
+           </div>
+        </div>
+      )}
     </div>
   );
 };
